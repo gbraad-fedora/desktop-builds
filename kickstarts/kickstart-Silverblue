@@ -1,0 +1,5 @@
+ostreecontainer --url=/run/install/repo/silverblue --transport=oci --no-signature-verification
+
+%post --erroronfail
+bootc switch --mutate-in-place --transport registry quay.io/fedora/fedora-silverblue:41
+%end

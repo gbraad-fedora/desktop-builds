@@ -4,38 +4,37 @@ run-name: Build process
 on:
   workflow_dispatch:
   push:
+    branches:
+      - "main"
+  pull_request: {}
   schedule:
     - cron: '0 0 1 */2 *'
 
 jobs:
-  build:
+
+  trigger-build-diskimage-silverblue:
     runs-on: ubuntu-latest
-    container: 
-      image: quay.io/fedora/fedora:41
-      options: --privileged
-
     steps:
-      - uses: actions/checkout@v4
-      - name: Install dependencies
-        run: dnf install lorax util-linux curl skopeo -y
-
-      - name: Prepare
-        run: mkdir output
-      - name: Download Fedora base ISO
-        run: curl -Lso base.iso https://dl.fedoraproject.org/pub/fedora/linux/releases/41/Everything/x86_64/os/images/boot.iso
-
-      - name: Set release tag
-        run: echo "TAG=$(date +'%y%m%d')" >> $GITHUB_ENV
-
-      - name: Download Silverblue container
-        run: skopeo copy docker://quay.io/fedora/fedora-silverblue:41 oci:silverblue
-      - name: Build Silverblue ISO
-        run: mkksiso -a silverblue kickstarts/kickstart-Silverblue base.iso output/silverblue-41-${{ env.TAG }}.iso
-      
-      - name: Upload Artifact - Silverblue ISO
-        uses: actions/upload-artifact@v4
+      - name: Start diskimage build - Silverblue
+        uses: actions/github-script@v7
         with:
-          name: silverblue
-          path: |
-            output/silverblue*.iso
-          retention-days: 30
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'build-diskimage-silverblue-upload.yml',
+              ref: context.ref,
+            });
+
+
+  wait-for-build-diskimage-silverblue:
+    runs-on: ubuntu-latest
+    needs: trigger-build-diskimage-silverblue
+    steps:
+      - name: Wait for build-diskimage silverblue to complete
+        uses: lewagon/wait-on-check-action@v1.3.4
+        with:
+          ref: ${{ github.ref }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }} 
+          check-name: 'build-diskimage-silverblue'  # does not show (ubuntu-latest) as it runs a container
+          wait-interval: 10

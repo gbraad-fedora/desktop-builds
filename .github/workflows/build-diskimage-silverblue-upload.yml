@@ -1,0 +1,41 @@
+name: build process silverblue
+run-name: Build process - Silverblue
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: build-diskimage-silverblue
+    runs-on: ubuntu-latest
+    container: 
+      image: quay.io/fedora/fedora:41
+      options: --privileged
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          dnf install -y \
+            lorax util-linux curl skopeo
+
+      - name: Prepare
+        run: mkdir output
+      - name: Download Fedora base ISO
+        run: curl -Lso base.iso https://dl.fedoraproject.org/pub/fedora/linux/releases/41/Everything/x86_64/os/images/boot.iso
+
+      - name: Set release tag
+        run: echo "TAG=$(date +'%y%m%d')" >> $GITHUB_ENV
+
+      - name: Download Silverblue container
+        run: skopeo copy docker://quay.io/fedora/fedora-silverblue:41 oci:silverblue
+      - name: Build Silverblue ISO
+        run: mkksiso -a silverblue kickstarts/kickstart-Silverblue base.iso output/silverblue-41-${{ env.TAG }}.iso
+      
+      - name: Upload Artifact - Silverblue ISO
+        uses: actions/upload-artifact@v4
+        with:
+          name: silverblue
+          path: |
+            output/silverblue*.iso
+          retention-days: 30
